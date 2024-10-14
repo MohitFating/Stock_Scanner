@@ -1,77 +1,76 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
+# In[5]:
 
 
 import yfinance as yf
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 
-# Function to get stock data and analyze for lifetime high and price appreciation
-def analyze_stocks(stock_symbols, analysis_period='10y', appreciation_threshold=20):
-    results = []
-    today = datetime.now()
-    start_date = today - timedelta(days=3650)  # 10 years ago
+# Function to get stock data
+def get_stock_data(stock_symbol, period):
+    stock_data = yf.Ticker(stock_symbol)
+    hist = stock_data.history(period=period)
+    return hist
 
-    for symbol in stock_symbols:
-        print(f"Analyzing {symbol}...")
-        stock_data = yf.Ticker(symbol)
-
-        # Fetch historical data
-        hist = stock_data.history(period=analysis_period)
-        
-        if hist.empty:
-            print(f"No data available for {symbol}. Skipping.")
-            continue
-        
-        # Calculate the lifetime high
-        lifetime_high = hist['Close'].max()
-        high_date = hist['Close'].idxmax()  # Date when the high occurred
-
-        # Find the price after reaching the lifetime high
-        price_after_high = hist.loc[high_date:].tail(1)['Close'].values[0]
-
-        # Calculate price appreciation
-        price_appreciation = ((price_after_high - lifetime_high) / lifetime_high) * 100
-
-        # Check if the price after the high appreciated significantly
-        if price_appreciation >= appreciation_threshold:
-            results.append({
-                'Ticker': symbol,
-                'Lifetime High': lifetime_high,
-                'Date of High': high_date.date(),
-                'Price After High': price_after_high,
-                'Price Appreciation (%)': price_appreciation,
-            })
-
-    return results
-
-# Function to summarize the results
-def summarize_results(results):
-    total_opportunities = len(results)
-    annual_opportunities = total_opportunities / 10  # Assuming analysis over 10 years
-    successful_opportunities = len([r for r in results if r['Price Appreciation (%)'] > 0])
-    success_rate = (successful_opportunities / total_opportunities) * 100 if total_opportunities > 0 else 0
-
-    print("\nSummary of Results:")
-    print(f"Total Opportunities: {total_opportunities}")
-    print(f"Annual Opportunities: {annual_opportunities:.2f}")
-    print(f"Success Rate: {success_rate:.2f}%")
-    print("Detailed Results:")
+# Function to analyze stocks for lifetime highs and price appreciation
+def analyze_stocks(stock_symbols, analysis_period='10y', appreciation_threshold=2):  # Reduce threshold to 2%
+    summary = {
+        'Total Opportunities': 0,
+        'Annual Opportunities': 0.0,
+        'Success Rate': 0.0,
+    }
+    detailed_results = []
     
-    for result in results:
-        print(result)
+    for stock in stock_symbols:
+        print(f"Analyzing {stock}...")
+        hist = get_stock_data(stock, analysis_period)
+
+        if len(hist) == 0:
+            print(f"No data available for {stock}.")
+            continue
+
+        # Get the lifetime high and its date
+        lifetime_high = hist['Close'].max()
+        high_date = hist['Close'].idxmax().date()
+        
+        # Current price to compare for appreciation
+        current_price = hist['Close'].iloc[-1]
+        
+        # Log the current and lifetime high for debugging
+        print(f"Lifelong High: {lifetime_high}, Current Price: {current_price}")
+
+        # Check for price appreciation
+        if current_price >= lifetime_high * (1 + appreciation_threshold / 100):
+            price_appreciation = ((current_price - lifetime_high) / lifetime_high) * 100
+            detailed_results.append({
+                'Ticker': stock,
+                'Lifetime High': round(lifetime_high, 2),
+                'Date of High': high_date,
+                'Price After High': round(current_price, 2),
+                'Price Appreciation (%)': round(price_appreciation, 2)
+            })
+            summary['Total Opportunities'] += 1
+
+    # Calculate annual opportunities and success rate
+    if detailed_results:
+        summary['Annual Opportunities'] = summary['Total Opportunities'] / (datetime.now().year - (datetime.now().year - 10))
+        summary['Success Rate'] = (summary['Total Opportunities'] / len(stock_symbols)) * 100
+
+    return summary, detailed_results
 
 # List of stock symbols to analyze
 stock_symbols = ['AAPL', 'TSLA', 'GOOGL', 'AMZN', 'MSFT', 'NFLX']  # Add your own list of stocks
 
-# Run the analysis with a lower appreciation threshold
-results = analyze_stocks(stock_symbols, analysis_period='10y', appreciation_threshold=10)
+# Run the analysis
+summary, detailed_results = analyze_stocks(stock_symbols, analysis_period='10y', appreciation_threshold=5)
 
-
-# Summarize results
-summarize_results(results)
+# Print summary
+print("\nSummary of Results:")
+print(f"Total Opportunities: {summary['Total Opportunities']}")
+print(f"Annual Opportunities: {summary['Annual Opportunities']:.2f}")
+print(f"Success Rate: {summary['Success Rate']:.2f}%")
 
 
 # In[ ]:
